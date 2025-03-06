@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "local-registry:5000/rails-app:latest"
-        KUBECONFIG = credentials('kubeconfig-credential-id')  // Salva seu kubeconfig no Jenkins
+        IMAGE_NAME = 'local-registry:5000/rails-app:latest'
+        KUBECONFIG = credentials('kubeconfig-credential-id')
     }
 
     stages {
@@ -42,10 +42,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Build e deploy concluídos!"
+            echo '✅ Build e deploy concluídos com sucesso!'
         }
         failure {
-            echo "❌ Falha no processo!"
+            echo '❌ Erro no pipeline!'
         }
     }
 }
