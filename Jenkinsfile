@@ -1,5 +1,28 @@
 pipeline {
-    agent any
+    agent {
+        kubernetes {
+            yaml """
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    some-label: kaniko
+spec:
+  containers:
+    - name: kaniko
+      image: gcr.io/kaniko-project/executor:debug
+      command: ["/busybox/cat"]
+      tty: true
+      volumeMounts:
+        - name: kaniko-secret
+          mountPath: /kaniko/.docker
+  volumes:
+    - name: kaniko-secret
+      secret:
+        secretName: kaniko-secret
+"""
+        }
+    }
 
     environment {
         IMAGE_NAME = 'local-registry:5000/rails-app:latest'
@@ -13,23 +36,24 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build with Kaniko') {
             steps {
-                sh """
-                docker build -t ${IMAGE_NAME} .
-                docker push ${IMAGE_NAME}
-                """
+                sh '''
+                echo "${KUBECONFIG_CONTENT}" > /tmp/kubeconfig
+                /kaniko/executor \
+                  --dockerfile Dockerfile \
+                  --context /workspace \
+                  --destination local-registry:5000/rails-app:latest
+                '''
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                echo "${KUBECONFIG_CONTENT}" > /tmp/kubeconfig
                 export KUBECONFIG=/tmp/kubeconfig
                 kubectl apply -f k8s/deployment.yml
                 kubectl apply -f k8s/service.yml
-                kubectl rollout status deployment/rails-app
                 '''
             }
         }
@@ -37,10 +61,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ Build e deploy concluídos com sucesso!"
+            echo "✅ Pipeline executado com sucesso!"
         }
         failure {
-            echo "❌ Falha no pipeline!"
+            echo "❌ Pipeline falhou!"
         }
     }
 }
