@@ -15,21 +15,20 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                docker build -t ${IMAGE_NAME} .
-                docker push ${IMAGE_NAME}
-                """
+                sh '''
+                echo "${KUBECONFIG_CONTENT}" > /tmp/kubeconfig
+                /kaniko/executor \
+                  --context `pwd` \
+                  --dockerfile Dockerfile \
+                  --destination local-registry:5000/rails-app:latest
+                '''
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
-                # Salva o kubeconfig no workspace para o kubectl usar
-                echo "${KUBECONFIG_CONTENT}" > /tmp/kubeconfig
                 export KUBECONFIG=/tmp/kubeconfig
-
-                # Aplica os manifests
                 kubectl apply -f k8s/deployment.yml
                 kubectl apply -f k8s/service.yml
                 kubectl rollout status deployment/rails-app
