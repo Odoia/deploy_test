@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         IMAGE_NAME = 'local-registry:5000/rails-app:latest'
-        KUBECONFIG = credentials('kubeconfig-credential-id')
+        KUBECONFIG_CONTENT = credentials('kubeconfig-credential-id')
     }
 
     stages {
@@ -15,27 +15,24 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                docker build -t ${IMAGE_NAME} .
-                """
-            }
-        }
-
-        stage('Push to Local Registry') {
-            steps {
-                sh """
-                docker push ${IMAGE_NAME}
-                """
+                sh '''
+                echo "${KUBECONFIG_CONTENT}" > /tmp/kubeconfig
+                /kaniko/executor \
+                  --context `pwd` \
+                  --dockerfile Dockerfile \
+                  --destination local-registry:5000/rails-app:latest
+                '''
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
-                sh """
+                sh '''
+                export KUBECONFIG=/tmp/kubeconfig
                 kubectl apply -f k8s/deployment.yml
                 kubectl apply -f k8s/service.yml
                 kubectl rollout status deployment/rails-app
-                """
+                '''
             }
         }
     }
