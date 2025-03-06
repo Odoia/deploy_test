@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rails-app
+  labels:
+    app: rails-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rails-app
+  template:
+    metadata:
+      labels:
+        app: rails-app
+    spec:
+      containers:
+        - name: rails-app
+          image: local-registry:5000/rails-app:latest  # Usa a imagem que o Jenkins vai buildar e subir
+          ports:
+            - containerPort: 3000
+          env:
+            - name: RAILS_ENV
+              value: "production"
+            - name: DATABASE_URL
+              value: "postgres://usuario:senha@postgres:5432/app_production"
+            - name: RAILS_LOG_TO_STDOUT
+              value: "true"
+          volumeMounts:
+            - mountPath: /rails/storage
+              name: rails-storage
+      volumes:
+        - name: rails-storage
+          emptyDir: {}
