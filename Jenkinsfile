@@ -15,19 +15,17 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh '''
-                echo "${KUBECONFIG_CONTENT}" > /tmp/kubeconfig
-                /kaniko/executor \
-                  --context `pwd` \
-                  --dockerfile Dockerfile \
-                  --destination local-registry:5000/rails-app:latest
-                '''
+                sh """
+                docker build -t ${IMAGE_NAME} .
+                docker push ${IMAGE_NAME}
+                """
             }
         }
 
         stage('Deploy to Kubernetes') {
             steps {
                 sh '''
+                echo "${KUBECONFIG_CONTENT}" > /tmp/kubeconfig
                 export KUBECONFIG=/tmp/kubeconfig
                 kubectl apply -f k8s/deployment.yml
                 kubectl apply -f k8s/service.yml
