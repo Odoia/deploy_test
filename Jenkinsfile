@@ -2,11 +2,9 @@ pipeline {
     agent any
 
     environment {
-        REPO_NAME = "deploy_test"
-        IMAGE_NAME = "deploy_test"
-        IMAGE_TAG = "latest"
-        DOCKER_REGISTRY = "10.0.0.211:5000" // Substitua pelo IP do seu registry privado se necessário
-        KUBECONFIG_PATH = "/etc/rancher/k3s/k3s.yaml" // Caminho do kubeconfig
+        JOB_NAME = "docker-builder"
+        KUBECONFIG_PATH = "/etc/rancher/k3s/k3s.yaml"
+        IMAGE_NAME = "10.0.0.211:5000/deploy_test:latest"
     }
 
     stages {
@@ -16,18 +14,19 @@ pipeline {
             }
         }
 
-        stage('Build da Imagem Docker') {
+        stage('Criar Job de Build no K3s') {
             steps {
                 script {
-                    sh "docker build -t $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG ."
+                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH delete job --ignore-not-found=true $JOB_NAME"
+                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH apply -f k8s-builder.yaml"
                 }
             }
         }
 
-        stage('Push para Docker Registry') {
+        stage('Aguardar Build da Imagem') {
             steps {
                 script {
-                    sh "docker push $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH wait --for=condition=complete --timeout=600s job/$JOB_NAME"
                 }
             }
         }
@@ -37,14 +36,6 @@ pipeline {
                 script {
                     sh "kubectl --kubeconfig=$KUBECONFIG_PATH apply -f k8s-deployment.yaml"
                     sh "kubectl --kubeconfig=$KUBECONFIG_PATH rollout status deployment/deploy-test"
-                }
-            }
-        }
-
-        stage('Limpeza de Imagens Locais') {
-            steps {
-                script {
-                    sh "docker rmi $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG || true"
                 }
             }
         }

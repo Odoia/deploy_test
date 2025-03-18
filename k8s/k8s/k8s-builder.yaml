@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: docker-builder
+  namespace: default
+spec:
+  template:
+    spec:
+      containers:
+      - name: builder
+        image: docker:20.10.24-dind
+        securityContext:
+          privileged: true
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            docker build -t 10.0.0.211:5000/deploy_test:latest /workspace
+            docker push 10.0.0.211:5000/deploy_test:latest
+      restartPolicy: Never
+      volumes:
+      - name: workspace
+        emptyDir: {}
