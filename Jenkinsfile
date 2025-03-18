@@ -1,70 +1,63 @@
 pipeline {
-    agent {
-        kubernetes {
-            yaml """
-apiVersion: v1
-kind: Pod
-metadata:
-  labels:
-    some-label: kaniko
-spec:
-  containers:
-    - name: kaniko
-      image: gcr.io/kaniko-project/executor:debug
-      command: ["/busybox/cat"]
-      tty: true
-      volumeMounts:
-        - name: kaniko-secret
-          mountPath: /kaniko/.docker
-  volumes:
-    - name: kaniko-secret
-      secret:
-        secretName: kaniko-secret
-"""
-        }
-    }
+    agent any
 
     environment {
-        IMAGE_NAME = 'local-registry:5000/rails-app:latest'
-        KUBECONFIG_CONTENT = credentials('kubeconfig-credential-id')
+        REPO_NAME = "deploy_test"
+        IMAGE_NAME = "deploy_test"
+        IMAGE_TAG = "latest"
+        DOCKER_REGISTRY = "10.0.0.211:5000" // Substitua pelo IP do seu registry privado se necessário
+        KUBECONFIG_PATH = "/etc/rancher/k3s/k3s.yaml" // Caminho do kubeconfig
+        DEPLOYMENT_NAME = "deploy-test"
+        NAMESPACE = "default" // Altere se estiver usando outro namespace
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Código') {
             steps {
-                checkout scm
+                git branch: 'main', url: 'https://github.com/Odoia/deploy_test.git'
             }
         }
 
-        stage('Build with Kaniko') {
+        stage('Build Docker Image') {
             steps {
-                sh '''
-                echo "${KUBECONFIG_CONTENT}" > /tmp/kubeconfig
-                /kaniko/executor \
-                  --dockerfile Dockerfile \
-                  --context /workspace \
-                  --destination local-registry:5000/rails-app:latest
-                '''
+                script {
+                    sh "docker build -t $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG ."
+                }
             }
         }
 
-        stage('Deploy to Kubernetes') {
+        stage('Push para Docker Registry') {
             steps {
-                sh '''
-                export KUBECONFIG=/tmp/kubeconfig
-                kubectl apply -f k8s/deployment.yml
-                kubectl apply -f k8s/service.yml
-                '''
+                script {
+                    sh "docker push $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+                }
+            }
+        }
+
+        stage('Deploy no K3s') {
+            steps {
+                script {
+                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH set image deployment/$DEPLOYMENT_NAME $DEPLOYMENT_NAME=$DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE"
+                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH rollout status deployment/$DEPLOYMENT_NAME -n $NAMESPACE"
+                }
+            }
+        }
+
+        stage('Limpeza de Imagens Locais') {
+            steps {
+                script {
+                    sh "docker rmi $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG || true"
+                }
             }
         }
     }
 
     post {
         success {
-            echo "✅ Pipeline executado com sucesso!"
+            echo "Deploy concluído com sucesso!"
         }
         failure {
-            echo "❌ Pipeline falhou!"
+            echo "Erro no deploy!"
         }
     }
 }
