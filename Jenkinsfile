@@ -7,8 +7,6 @@ pipeline {
         IMAGE_TAG = "latest"
         DOCKER_REGISTRY = "10.0.0.211:5000" // Substitua pelo IP do seu registry privado se necessário
         KUBECONFIG_PATH = "/etc/rancher/k3s/k3s.yaml" // Caminho do kubeconfig
-        DEPLOYMENT_NAME = "deploy-test"
-        NAMESPACE = "default" // Altere se estiver usando outro namespace
     }
 
     stages {
@@ -18,7 +16,7 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build da Imagem Docker') {
             steps {
                 script {
                     sh "docker build -t $DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG ."
@@ -37,8 +35,8 @@ pipeline {
         stage('Deploy no K3s') {
             steps {
                 script {
-                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH set image deployment/$DEPLOYMENT_NAME $DEPLOYMENT_NAME=$DOCKER_REGISTRY/$IMAGE_NAME:$IMAGE_TAG -n $NAMESPACE"
-                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH rollout status deployment/$DEPLOYMENT_NAME -n $NAMESPACE"
+                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH apply -f k8s-deployment.yaml"
+                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH rollout status deployment/deploy-test"
                 }
             }
         }
