@@ -10,7 +10,7 @@ pipeline {
   stages {
     stage('Clonar projeto') {
       steps {
-        git 'https://github.com/Odoia/deploy_test.git'
+        git url: 'https://github.com/Odoia/deploy_test.git', branch: 'main'
       }
     }
 
