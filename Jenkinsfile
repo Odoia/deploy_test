@@ -1,52 +1,41 @@
 pipeline {
-    agent any
+  agent any
 
-    environment {
-        JOB_NAME = "docker-builder"
-        KUBECONFIG_PATH = "/etc/rancher/k3s/k3s.yaml"
-        IMAGE_NAME = "10.0.0.211:5000/deploy_test:latest"
+  environment {
+    IMAGE_NAME = "deploy_test"
+    REGISTRY = "localhost:5000" // se usar um registry local, pode ajustar
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        git 'https://github.com/Odoia/deploy_test.git'
+      }
     }
 
-    stages {
-        stage('Checkout Código') {
-            steps {
-                git branch: 'main', url: 'https://github.com/Odoia/deploy_test.git'
-            }
+    stage('Build Docker Image') {
+      steps {
+        script {
+          sh 'docker build -t $IMAGE_NAME .'
         }
-
-        stage('Criar Job de Build no K3s') {
-            steps {
-                script {
-                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH delete job --ignore-not-found=true $JOB_NAME"
-                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH apply -f k8s-builder.yaml"
-                }
-            }
-        }
-
-        stage('Aguardar Build da Imagem') {
-            steps {
-                script {
-                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH wait --for=condition=complete --timeout=600s job/$JOB_NAME"
-                }
-            }
-        }
-
-        stage('Deploy no K3s') {
-            steps {
-                script {
-                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH apply -f k8s-deployment.yaml"
-                    sh "kubectl --kubeconfig=$KUBECONFIG_PATH rollout status deployment/deploy-test"
-                }
-            }
-        }
+      }
     }
 
-    post {
-        success {
-            echo "Deploy concluído com sucesso!"
+    stage('Deploy') {
+      steps {
+        script {
+          // Remove e sobe novamente no Swarm
+          sh '''
+            docker service rm deploy_test || true
+            docker service create \
+              --name deploy_test \
+              --replicas 1 \
+              --network internal_network \
+              -p 3000:3000 \
+              deploy_test
+          '''
         }
-        failure {
-            echo "Erro no deploy!"
-        }
+      }
     }
+  }
 }
