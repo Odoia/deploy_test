@@ -27,6 +27,12 @@ pipeline {
         sh 'docker push $REGISTRY/$IMAGE_NAME:$TAG'
       }
     }
+
+    stage('Deploy no Swarm') {
+      steps {
+        sh 'docker service update --image 10.0.0.211:5000/deploy_test:latest deploy_test_web'
+      }
+    }
   }
 
   post {
