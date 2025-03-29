@@ -3,11 +3,12 @@ pipeline {
 
   environment {
     IMAGE_NAME = "deploy_test"
-    REGISTRY = "localhost:5000" // se usar um registry local, pode ajustar
+    REGISTRY = "10.0.0.211:5000"
+    TAG = "latest"
   }
 
   stages {
-    stage('Checkout') {
+    stage('Clonar projeto') {
       steps {
         git 'https://github.com/Odoia/deploy_test.git'
       }
@@ -16,26 +17,28 @@ pipeline {
     stage('Build Docker Image') {
       steps {
         script {
-          sh 'docker build -t $IMAGE_NAME .'
+          docker.build("${REGISTRY}/${IMAGE_NAME}:${TAG}")
         }
       }
     }
 
-    stage('Deploy') {
+    stage('Push to Local Registry') {
       steps {
         script {
-          // Remove e sobe novamente no Swarm
-          sh '''
-            docker service rm deploy_test || true
-            docker service create \
-              --name deploy_test \
-              --replicas 1 \
-              --network internal_network \
-              -p 3000:3000 \
-              deploy_test
-          '''
+          docker.withRegistry("http://${REGISTRY}") {
+            docker.image("${REGISTRY}/${IMAGE_NAME}:${TAG}").push()
+          }
         }
       }
+    }
+  }
+
+  post {
+    success {
+      echo "Imagem enviada com sucesso para ${REGISTRY}/${IMAGE_NAME}:${TAG}"
+    }
+    failure {
+      echo "Erro no processo de build ou push"
     }
   }
 }
